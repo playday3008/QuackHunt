@@ -1,6 +1,6 @@
 // PIN Configuration
 #define LED_PIN  LED_BUILTIN
-#define TRIG_PIN D2
+#define TRIG_PIN D4
 
 // Serial Settings
 #define BAUD_RATE 74880 // Bootloader have the same baud rate
