@@ -1,4 +1,4 @@
-# Components
+# QuackHunt Gun Components
 
 ## Controller
 
