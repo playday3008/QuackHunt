@@ -230,14 +230,14 @@ let pane_player = null;
 function preload() {
   // Delete default loading screen (we have our own)
   document.getElementById('p5_loading').remove();
-/*
+
   // Load audio assets
   for (let i = 0; i < 3; i++) {
       assets.shots.push(loadSound(`./assets/sound/shot${i}.mp3`));
   }
   for (let i = 0; i < 2; i++) {
       assets.hits.push(loadSound(`./assets/sound/hit${i}.mp3`));
-  }*/
+  }
 
   // Load background
   assets.sprites['field'] = loadImage('./assets/images/field.png');
