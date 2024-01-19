@@ -94,6 +94,84 @@ class BirdsObj {
   }
 };
 
+class BirdsFeather {
+  constructor(bird) {
+      this.pos = createVector(bird.x, bird.y);
+      this.size = bird.size / 4;
+      this.bv = bird.v.copy();
+      this.v = createVector(1, 1);
+      this.v.setHeading(random() * TWO_PI);
+      this.v.setMag(random(0.5, 1.0) * this.size / 10);
+      this.pos.add(this.v);
+      this.angle = random() * TWO_PI;
+      this.av = random() * PI / 20;
+      this.sprites = bird.sprites;
+      this.max = 30;
+      this.count = this.max;
+  }
+  draw() {
+      this.v.add(0, 0.05);
+      this.bv.setMag(this.bv.mag() * 0.95);
+      this.v.setMag(this.v.mag() * 0.97);
+      let V = p5.Vector.add(this.bv, this.v);
+      this.pos.add(V);
+
+      push();
+      translate(this.pos.x, this.pos.y);
+      this.angle += this.av;
+      rotate(this.angle);
+      tint(255, this.count * 255 / this.max);
+      let sprite = this.sprites[4].get();
+      sprite.resize(this.size, 0);
+      imageMode(CENTER);
+      image(sprite, 0, 0);
+      pop();
+      this.count--;
+  }
+  end() {
+      return this.count <= 0;
+  }
+};
+
+// ##################### GAME #####################
+class GameBirds extends GameCore {
+  feathers = [];
+  constructor(data) {
+      super(data);
+  }
+  tick() {
+      background(config.dark ? 10 : 255);
+      imageMode(CENTER);
+      let img = assets.sprites.field.get();
+      img.resize(windowWidth, 0);
+      if (img.height > windowHeight) img.resize(img.width * windowHeight / img.height, 0);
+
+      if (Math.random() < 0.02) {
+          let bird = BirdsVariety[randomInt(BirdsVariety.length)];
+          let r = Colors[bird];
+          if (!(Colors.codes[r] in this.objects)) {
+              this.objects[Colors.codes[r]] = new BirdsObj(r, img.width, img.height, assets.sprites.birds[bird]);
+          }
+      }
+      for (let obj in this.objects) {
+          if (this.objects[obj].hit) {
+              let feather_am = randomInt(5, 8);
+              for (let i = 0; i < feather_am; i++) this.feathers.push(new BirdsFeather(this.objects[obj]));
+              delete this.objects[obj];
+          }
+          else this.objects[obj].draw();
+      }
+      for (let f in this.feathers) {
+          if (this.feathers[f].end()) this.feathers.splice(f, 1);
+          else this.feathers[f].draw();
+      }
+
+      image(img, windowWidth / 2, windowHeight / 2);
+
+      super.tick();
+  }
+};
+
 // ##################### CONSTANTS #####################
 const Difficulties = [
   { speed: 20, size: 0.15 }, // CAN I PLAY, DADDY?
@@ -159,7 +237,7 @@ function preload() {
   }
   for (let i = 0; i < 2; i++) {
       assets.hits.push(loadSound(`./assets/sound/hit${i}.mp3`));
-  }
+  }*/
 
   // Load background
   assets.sprites['field'] = loadImage('./assets/images/field.png');
@@ -171,7 +249,7 @@ function preload() {
       for (let i = 0; i < 5; i++) {
           assets.sprites.birds[c].push(loadImage(`./assets/images/birds/${c}${i}.png`));
       }
-  }*/
+  }
 }
 
 function setup() {
@@ -207,12 +285,14 @@ function setup() {
       },
   }).on('change',() => {
     if (game) {
+      game = new GameBirds(data);
     };
   });
 
   pane.addButton({
     title: 'Start',
   }).on('click', () => {
+    game = new GameBirds(data);
   });
 
   pane_player = pane.addFolder({ title: config.name, expanded: true });
