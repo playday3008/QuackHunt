@@ -383,6 +383,8 @@ void loop() {
         if (tmr)
             led.toggle();
     }
+    else
+        led.off();
 
     btn.tick();
     if (btn.press())
