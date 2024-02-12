@@ -54,8 +54,13 @@ void setup() {
 
         if (!oled.begin(OLED_ADDR)) {
             Serial.println("OLED allocation failed");
-            for (;;)
-                ;
+            for (;;) {
+                led.toggle();
+                if (oled.begin(OLED_ADDR))
+                    break;
+                delay(100);
+            }
+            led.off();
         }
 
         oled.clearDisplay();
@@ -86,8 +91,13 @@ void setup() {
             oled.println("No TCS34725 found");
             oled.display();
 
-            for (;;)
-                ;
+            for (;;) {
+                led.toggle();
+                if (rgb.begin())
+                    break;
+                delay(100);
+            }
+            led.off();
         }
 
         Serial.println("RGB Sensor Initialized!");
@@ -111,8 +121,13 @@ void setup() {
             oled.println("SPIFFS Mount Failed");
             oled.display();
 
-            for (;;)
-                ;
+            for (;;) {
+                led.toggle();
+                if (SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED))
+                    break;
+                delay(100);
+            }
+            led.off();
         }
 
         Serial.println("SPIFFS Initialized!");
@@ -141,8 +156,9 @@ void setup() {
                 oled.setTextSize(1);
                 oled.println("Failed to create default Wi-Fi settings");
                 oled.display();
-                for (;;)
-                    ;
+                
+                SPIFFS.remove(WIFI_SETTINGS_FILE);
+                ESP.restart();
             }
             file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
             file.close();
@@ -185,7 +201,7 @@ void setup() {
             oled.println("QuackHunt");
             oled.setTextSize(1);
             oled.println("Connecting to Wi-Fi");
-            oled.println(wifi_settings.ssid);
+            oled.print(wifi_settings.ssid);
             oled.display();
 
             WiFi.begin(wifi_settings.ssid, wifi_settings.pass);
@@ -216,7 +232,7 @@ void setup() {
                 oled.setCursor(0, 0);
                 oled.println("QuackHunt");
                 oled.setTextSize(1);
-                oled.println("Wi-Fi Connected!");
+                oled.print("IP: ");
                 oled.println(WiFi.localIP());
                 oled.display();
             }
@@ -267,8 +283,8 @@ void setup() {
                             oled.println("Failed to save Wi-Fi configuration");
                             oled.display();
 
-                            for (;;)
-                                ;
+                            SPIFFS.remove(WIFI_SETTINGS_FILE);
+                            ESP.restart();
                         }
                         file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
                         file.close();
@@ -329,8 +345,10 @@ void setup() {
                     oled.setCursor(0, 0);
                     oled.println("QuackHunt");
                     oled.setTextSize(1);
+                    oled.print("IP: ");
                     oled.println(WiFi.localIP());
                     oled.println((char *)payload);
+                    oled.display();
                 } break;
                 case WStype_BIN: {
                     Serial.printf("[%u] Got binary length: %u\n", num, length);
@@ -363,15 +381,18 @@ void sendColor(bool shot) {
 
     Serial.println(s);
 
+#if DEBUG
     oled.clearDisplay();
     oled.setTextSize(2);
     oled.setTextColor(SSD1327_WHITE);
     oled.setCursor(0, 0);
     oled.println("QuackHunt");
     oled.setTextSize(1);
+    oled.print("IP: ");
     oled.println(WiFi.localIP());
     oled.println(s);
     oled.display();
+#endif
 
     ws.sendTXT(ws_client, (uint8_t *)s.c_str(), s.length());
 }
