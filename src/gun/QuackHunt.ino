@@ -1,33 +1,42 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
+#include <WiFi.h>
 #include <EncButton.h>
-#include <FileData.h>
-#include <LittleFS.h>
+#include <FS.h>
+#include <SPIFFS.h>
 #include <SimplePortal.h>
 #include <WebSocketsServer.h>
 #include <Wire.h>
-#include <rgb_lcd.h>
 
-#include "TCS3472.hpp"
+#include <Adafruit_SSD1327.h>
+#include "TCS34725.hpp"
 #include "config.h"
 #include "led.hpp"
 #include "tmr.hpp"
 
-// --- Global variables ---
-rgb_lcd          lcd;                          // For LCD
-WiFiSettings     wifi_settings;                // For Wi-Fi
-Button           btn(TRIG_PIN);                // For button handling
-Led              led(LED_PIN);                 // For LED controlling
-TCS3472          rgb;                          // For RGB Sensor reading
-WebSocketsServer ws(WS_PORT, "", WS_PROTOCOL); // For WebSocket
-uint8_t          client_number = 0;
+// --- Global Device Variables ---
+Button           btn(TRIG_PIN);     // For button handling
+Led              led(LED_PIN);      // For LED controlling
+Adafruit_SSD1327 oled(              // For OLED Display
+    OLED_WIDTH, OLED_HEIGHT, 
+    &Wire,
+    OLED_RESET,
+    OLED_SPEED_DURING,
+    OLED_SPEED_AFTER);
+TCS34725         rgb(               // For RGB Sensor reading
+    &Wire,
+    RGB_ADDR,
+    RGB_TIME,
+    RGB_GAIN);
+WebSocketsServer ws(                // For WebSocket
+    WS_PORT,
+    WS_ORIGIN,
+    WS_PROTOCOL);
 
-// For Storing Wi-Fi Settings
-FileData wifi_storage(&LittleFS,
-                      "/wifi.dat",
-                      'B',
-                      &wifi_settings,
-                      sizeof(wifi_settings));
+// --- Global Logic Variables ---
+WiFiSettings     wifi_settings;     // For Wi-Fi
+uint8_t          ws_client = 0; // For WebSocket
+
+void hexdump(const void* mem, uint32_t len, uint8_t cols = 16);
 
 void setup() {
     // Setup Serial
@@ -38,55 +47,112 @@ void setup() {
         Serial.println("### Firmware Initializing ###");
     }
 
-    // Setup LED
+    // Setup OLED Display
     {
         Serial.println();
-        Serial.println("Initializing LCD");
-        lcd.begin(LCD_COLS, LCD_ROWS);
-        lcd.setRGB(0xff, 0xff, 0xff);
-        Serial.println("LCD Initialized!");
-    }
+        Serial.println("Initializing OLED Display");
 
-    // Setup LittleFS
-    {
-        Serial.println();
-        Serial.println("Initializing LittleFS");
-        LittleFS.begin();
-        Serial.println("LittleFS Initialized!");
-    }
-
-    // Setup FileData
-    {
-        Serial.println();
-        Serial.println("Initializing FileData");
-        FDstat_t stat = wifi_storage.read();
-
-        switch (stat) {
-            case FD_FS_ERR:
-                Serial.println("FS Error");
-                while (1) {
-                }
-                break;
-            case FD_FILE_ERR:
-                Serial.println("File Error");
-                while (1) {
-                }
-                break;
-#ifdef DEBUG
-            case FD_WRITE:
-                Serial.println("Data Write");
-                break;
-            case FD_ADD:
-                Serial.println("Data Add");
-                break;
-            case FD_READ:
-                Serial.println("Data Read");
-                break;
-#endif
-            default:
-                break;
+        if (!oled.begin(OLED_ADDR)) {
+            Serial.println("OLED allocation failed");
+            for (;;)
+                ;
         }
-#ifdef DEBUG
+
+        oled.clearDisplay();
+        oled.setTextSize(2);
+        oled.setTextColor(SSD1327_WHITE);
+        oled.setCursor(0, 0);
+        oled.println("QuackHunt");
+        oled.display();
+
+        Serial.println("OLED Display Initialized!");
+    }
+
+    // Setup RGB Sensor
+    {
+        Serial.println();
+        Serial.println("Initializing RGB Sensor");
+
+        if (!rgb.begin()) {
+            Serial.println("No TCS34725 found");
+
+            oled.clearDisplay();
+            oled.setTextSize(2);
+            oled.setTextColor(SSD1327_WHITE);
+            oled.setCursor(0, 0);
+            oled.println("QuackHunt");
+            oled.setTextColor(SSD1327_BLACK);
+            oled.setTextSize(1);
+            oled.println("No TCS34725 found");
+            oled.display();
+
+            for (;;)
+                ;
+        }
+
+        Serial.println("RGB Sensor Initialized!");
+    }
+
+    // Setup SPIFFS
+    {
+        Serial.println();
+        Serial.println("Initializing SPIFFS");
+
+        if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
+            Serial.println("SPIFFS Mount Failed");
+
+            oled.clearDisplay();
+            oled.setTextSize(2);
+            oled.setTextColor(SSD1327_WHITE);
+            oled.setCursor(0, 0);
+            oled.println("QuackHunt");
+            oled.setTextColor(SSD1327_BLACK);
+            oled.setTextSize(1);
+            oled.println("SPIFFS Mount Failed");
+            oled.display();
+
+            for (;;)
+                ;
+        }
+
+        Serial.println("SPIFFS Initialized!");
+    }
+
+    // Setup WiFi Settings
+    {
+        Serial.println();
+        Serial.println("Initializing Wi-Fi Settings");
+        // Check if file 'wifi.settings' exists
+        // If not, create one with default settings
+        // If yes, read the settings from the file to wifi_settings struct
+        File file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_READ);
+        if (!file) {
+            Serial.println("No Wi-Fi settings found");
+            Serial.println("Creating default Wi-Fi settings");
+            file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_WRITE);
+            if (!file) {
+                Serial.println("Failed to create default Wi-Fi settings");
+                oled.clearDisplay();
+                oled.setTextSize(2);
+                oled.setTextColor(SSD1327_WHITE);
+                oled.setCursor(0, 0);
+                oled.println("QuackHunt");
+                oled.setTextColor(SSD1327_BLACK);
+                oled.setTextSize(1);
+                oled.println("Failed to create default Wi-Fi settings");
+                oled.display();
+                for (;;)
+                    ;
+            }
+            file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
+            file.close();
+            Serial.println("Default Wi-Fi settings created!");
+        } else {
+            Serial.println("Reading Wi-Fi settings");
+            file.read((uint8_t *)&wifi_settings, sizeof(wifi_settings));
+            file.close();
+        }
+#if DEBUG
         Serial.println("Data read:");
         Serial.println(wifi_settings.ssid);
         Serial.println(wifi_settings.pass);
@@ -94,29 +160,40 @@ void setup() {
                        : wifi_settings.mode == 2 ? "WIFI_AP"
                                                  : "UNK");
 #endif
-        Serial.println("FileData Initialized!");
+        Serial.println("WiFi Settings Initialized!");
     }
 
     // Setup Wi-Fi
     {
         Serial.println();
         Serial.println("Initializing Wi-Fi");
+
+        // Delay for 2 seconds to allow the user to press the button to enter
+        // the Wi-Fi Portal
+        delay(2000);
+
         btn.tick();
-        if (wifi_settings.ssid[0] != '\0' && btn.read()) {
+        if (wifi_settings.ssid[0] != '\0' && !btn.read()) {
             // There is a saved Wi-Fi configuration
             Serial.print("Connecting to saved Wi-Fi: ");
             Serial.print(wifi_settings.ssid);
 
-            lcd.setCursor(0, 0);
-            lcd.print("Connecting...");
-            lcd.setCursor(0, 1);
-            lcd.print("To Wi-Fi");
-            lcd.setCursor(0, 0);
+            oled.clearDisplay();
+            oled.setTextSize(2);
+            oled.setTextColor(SSD1327_WHITE);
+            oled.setCursor(0, 0);
+            oled.println("QuackHunt");
+            oled.setTextSize(1);
+            oled.println("Connecting to Wi-Fi");
+            oled.println(wifi_settings.ssid);
+            oled.display();
 
             WiFi.begin(wifi_settings.ssid, wifi_settings.pass);
             uint32_t tmr = millis();
             while (WiFi.status() != WL_CONNECTED) {
                 Serial.print(".");
+                oled.print(".");
+                oled.display();
                 delay(200);
                 if (millis() - tmr > WIFI_CONNECT_TIMEOUT) {
                     // Timeout is 20s
@@ -126,23 +203,27 @@ void setup() {
                     break;
                 }
             }
+
             if (WiFi.status() == WL_CONNECTED) {
                 Serial.println();
                 Serial.println("Wi-Fi Connected!");
                 Serial.print("IP Address: ");
                 Serial.println(WiFi.localIP());
 
-                lcd.clear();
-                lcd.setCursor(0, 0);
-                lcd.print("Waiting for App");
-                lcd.setCursor(0, 1);
-                lcd.print(WiFi.localIP());
-                lcd.setCursor(0, 0);
+                oled.clearDisplay();
+                oled.setTextSize(2);
+                oled.setTextColor(SSD1327_WHITE);
+                oled.setCursor(0, 0);
+                oled.println("QuackHunt");
+                oled.setTextSize(1);
+                oled.println("Wi-Fi Connected!");
+                oled.println(WiFi.localIP());
+                oled.display();
             }
         }
 
         btn.tick();
-        if (WiFi.status() != WL_CONNECTED || !btn.read()) {
+        if (WiFi.status() != WL_CONNECTED || btn.read()) {
             // There is no saved Wi-Fi configuration or the saved Wi-Fi
             // configuration is invalid
             Serial.println(
@@ -153,12 +234,15 @@ void setup() {
             Serial.println("SSID: " SP_AP_NAME);
             Serial.println("Portal log:");
 
-            lcd.clear();
-            lcd.setCursor(0, 0);
-            lcd.print("SSID: " SP_AP_NAME);
-            lcd.setCursor(0, 1);
-            lcd.print(WiFi.softAPIP());
-            lcd.setCursor(0, 0);
+            oled.clearDisplay();
+            oled.setTextSize(2);
+            oled.setTextColor(SSD1327_WHITE);
+            oled.setCursor(0, 0);
+            oled.println("QuackHunt");
+            oled.setTextSize(1);
+            oled.println("Starting Wi-Fi Portal");
+            oled.println(SP_AP_NAME);
+            oled.display();
 
             while (1) {
                 if (portalTick()) {
@@ -169,7 +253,25 @@ void setup() {
                         wifi_settings.mode = portalCfg.mode;
 
                         Serial.println("Saving Wi-Fi configuration");
-                        wifi_storage.updateNow();
+                        File file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_WRITE);
+                        if (!file) {
+                            Serial.println("Failed to save Wi-Fi configuration");
+
+                            oled.clearDisplay();
+                            oled.setTextSize(2);
+                            oled.setTextColor(SSD1327_WHITE);
+                            oled.setCursor(0, 0);
+                            oled.println("QuackHunt");
+                            oled.setTextColor(SSD1327_BLACK);
+                            oled.setTextSize(1);
+                            oled.println("Failed to save Wi-Fi configuration");
+                            oled.display();
+
+                            for (;;)
+                                ;
+                        }
+                        file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
+                        file.close();
 
                         Serial.println("Wi-Fi configuration saved!");
                         Serial.println("Restarting...");
@@ -178,6 +280,7 @@ void setup() {
                 }
             }
         }
+
         Serial.println("Wi-Fi Initialized!");
     }
 
@@ -185,6 +288,7 @@ void setup() {
     {
         Serial.println();
         Serial.println("Initializing WebSocket");
+
         ws.begin();
         ws.onEvent([](uint8_t  num,
                       WStype_t type,
@@ -195,9 +299,8 @@ void setup() {
                     Serial.printf("[%u] Disconnected!\n", num);
                 } break;
                 case WStype_CONNECTED: {
-                    client_number = num;
+                    ws_client = num;
                     led.on();
-                    // lcd.clear();
                     IPAddress ip = ws.remoteIP(num);
                     Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n",
                                   num,
@@ -208,10 +311,10 @@ void setup() {
                                   payload);
                     // Report board configuration to the app
                     String s;
-                    s += "LCD:";
-                    s += LCD_COLS;
+                    s += "OLED:";
+                    s += OLED_WIDTH;
                     s += ',';
-                    s += LCD_ROWS;
+                    s += OLED_HEIGHT;
                     s += ';';
                     s += "SSID:";
                     s += wifi_settings.ssid;
@@ -219,16 +322,15 @@ void setup() {
                 } break;
                 case WStype_TEXT: {
                     Serial.printf("[%u] Got Text: %s\n", num, payload);
-                    // Print the payload to the LCD screen (LCD_COLS * LCD_ROWS)
-                    lcd.clear();
-                    lcd.setCursor(0, 0);
-                    lcd.print((char *)payload);
-                    for (uint8_t i = 0; i < LCD_ROWS; i++) {
-                        if (i * LCD_COLS >= length)
-                            break;
-                        lcd.setCursor(0, i);
-                        lcd.print((char *)payload + i * LCD_COLS);
-                    }
+
+                    oled.clearDisplay();
+                    oled.setTextSize(2);
+                    oled.setTextColor(SSD1327_WHITE);
+                    oled.setCursor(0, 0);
+                    oled.println("QuackHunt");
+                    oled.setTextSize(1);
+                    oled.println(WiFi.localIP());
+                    oled.println((char *)payload);
                 } break;
                 case WStype_BIN: {
                     Serial.printf("[%u] Got binary length: %u\n", num, length);
@@ -238,24 +340,40 @@ void setup() {
                     break;
             }
         });
+
         Serial.println("WebSocket Initialized!");
     }
 
     Serial.println();
-    Serial.println("### Firmware Initializing ###");
+    Serial.println("### Firmware Initialized ###");
 }
 
 void sendColor(bool shot) {
-    tcs_color_t color = rgb.getRaw();
-    String      s;
-    s += color.r;
+    uint16_t clear, red, green, blue;
+    rgb.getRGBC(&red, &green, &blue, &clear);
+
+    String s;
+    s += red;
     s += ',';
-    s += color.g;
+    s += green;
     s += ',';
-    s += color.b;
+    s += blue;
     s += ',';
     s += shot;
-    ws.sendTXT(client_number, (uint8_t *)s.c_str(), s.length());
+
+    Serial.println(s);
+
+    oled.clearDisplay();
+    oled.setTextSize(2);
+    oled.setTextColor(SSD1327_WHITE);
+    oled.setCursor(0, 0);
+    oled.println("QuackHunt");
+    oled.setTextSize(1);
+    oled.println(WiFi.localIP());
+    oled.println(s);
+    oled.display();
+
+    ws.sendTXT(ws_client, (uint8_t *)s.c_str(), s.length());
 }
 
 void loop() {
@@ -269,9 +387,40 @@ void loop() {
     btn.tick();
     if (btn.press())
         sendColor(true);
+
     if (btn.holding()) {
         static Tmr tmr(100);
         if (tmr)
             sendColor(false);
     }
+}
+
+IRAM_ATTR
+void hexdump(const void* mem, uint32_t len, uint8_t cols)
+{
+    const char* src = (const char*)mem;
+    Serial.printf("\n[HEXDUMP] Address: %p len: 0x%X (%d)", src, len, len);
+    while (len > 0)
+    {
+        uint32_t linesize = cols > len ? len : cols;
+        Serial.printf("\n[%p] 0x%04x: ", src, (int)(src - (const char*)mem));
+        for (uint32_t i = 0; i < linesize; i++)
+        {
+            Serial.printf("%02x ", *(src + i));
+        }
+        Serial.printf("  ");
+        for (uint32_t i = linesize; i < cols; i++)
+        {
+            Serial.printf("   ");
+        }
+        for (uint32_t i = 0; i < linesize; i++)
+        {
+            unsigned char c = *(src + i);
+            Serial.print(isprint(c) ? c : '.');
+        }
+        src += linesize;
+        len -= linesize;
+        optimistic_yield(10000);
+    }
+    Serial.printf("\n");
 }

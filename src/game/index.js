@@ -333,7 +333,7 @@ function windowResized() {
 }
 
 function connect_h() {
-  ws = new WebSocket(`ws://${config.ip}:81/`, ['Arduino']);
+  ws = new WebSocket(`ws://${config.ip}:81/`, ['QuackHuntGun']);
   ws.onopen = () => {
     //config('Status', 'Connected');
   };
