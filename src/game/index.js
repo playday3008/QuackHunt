@@ -211,6 +211,7 @@ let config = {
   name: 'Player 1',
   ip: '192.168.1.101',
   treshold: 50,
+  status: 'Not connected',
 };
 
 let game = null;
@@ -311,6 +312,8 @@ function setup() {
     .on('change', () => {
       localStorage.setItem("QuackHunt_config", JSON.stringify(config));
     });
+  pane_player.addSeparator();
+  pane_player.addMonitor(config, 'status', { label: 'Status' });
   pane_player.addButton({ title: 'Connect', })
     .on('click', () => { connect_h(); });
   pane_player.addButton({ title: 'Calibration', })
@@ -334,11 +337,11 @@ function windowResized() {
 function connect_h() {
   ws = new WebSocket(`ws://${config.ip}:81/`, ['QuackHuntGun']);
   ws.onopen = () => {
-    //config('Status', 'Connected');
+    config.status = 'Connected';
   };
   ws.onclose = () => {
     ws = null;
-    //config('Status', 'Not connected');
+    config.status = 'Not Connected';
     setTimeout(connect_h, 1000);
   };
   ws.onmessage = (e) => {
