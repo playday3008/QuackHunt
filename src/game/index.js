@@ -253,11 +253,11 @@ function setup() {
   document.getElementById('loading').remove();
 
   // Load calibration and config from local storage
-  if (localStorage.hasOwnProperty("calibration")) {
-    calibration = JSON.parse(localStorage.getItem("calibration"));
+  if (localStorage.hasOwnProperty("QuackHunt_calibration")) {
+    calibration = JSON.parse(localStorage.getItem("QuackHunt_calibration"));
   }
-  if (localStorage.hasOwnProperty("config")) {
-    config = JSON.parse(localStorage.getItem("config"));
+  if (localStorage.hasOwnProperty("QuackHunt_config")) {
+    config = JSON.parse(localStorage.getItem("QuackHunt_config"));
   }
 
   // Create canvas
@@ -270,7 +270,7 @@ function setup() {
   });
   pane.addInput(config, 'dark', { label: 'Dark' })
     .on('change', () => {
-      localStorage.setItem("config", JSON.stringify(config));
+      localStorage.setItem("QuackHunt_config", JSON.stringify(config));
     });
   pane.addInput(config, 'difficulty', {
     label: 'Difficulty',
@@ -287,10 +287,9 @@ function setup() {
     if (game) {
       game = new GameBirds(data);
     };
-  })
-    .on('change', () => {
-      localStorage.setItem("config", JSON.stringify(config));
-    });
+  }).on('change', () => {
+    localStorage.setItem("QuackHunt_config", JSON.stringify(config));
+  });
 
   pane.addButton({
     title: 'Start',
@@ -302,15 +301,15 @@ function setup() {
   pane_player = pane.addFolder({ title: config.name, expanded: true });
   pane_player.addInput(config, 'name', { label: 'Name' })
     .on('change', () => {
-      localStorage.setItem("config", JSON.stringify(config));
+      localStorage.setItem("QuackHunt_config", JSON.stringify(config));
     });
   pane_player.addInput(config, 'ip', { label: 'IP' })
     .on('change', () => {
-      localStorage.setItem("config", JSON.stringify(config));
+      localStorage.setItem("QuackHunt_config", JSON.stringify(config));
     });
   pane_player.addInput(config, 'treshold', { label: 'Treshold', min: 0, max: 255, step: 1 })
     .on('change', () => {
-      localStorage.setItem("config", JSON.stringify(config));
+      localStorage.setItem("QuackHunt_config", JSON.stringify(config));
     });
   pane_player.addButton({ title: 'Connect', })
     .on('click', () => { connect_h(); });
@@ -385,6 +384,6 @@ function calibration_h() {
   calibration.r = packet[0];
   calibration.g = packet[1];
   calibration.b = packet[2];
-  localStorage.setItem("calibration", JSON.stringify(calibration));
+  localStorage.setItem("QuackHunt_calibration", JSON.stringify(calibration));
 }
 
