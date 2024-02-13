@@ -567,12 +567,16 @@ void portal_build(GyverPortal &p) {
     GP.OTA_FILESYSTEM();
     GP.BLOCK_END();
 
-    GP.BLOCK_TAB_BEGIN(F("Debug Info"));
+    GP.BLOCK_TAB_BEGIN(F("Debug Stuff"));
+
     GP.SYSTEM_INFO(FIRMWARE_VERSION);
 
-    GP.BLOCK_TAB_BEGIN(F("File Manager"));
+    GP.BLOCK_TAB_BEGIN(F("File Upload"));
+    GP.FILE_UPLOAD("file_upl", "Upload File");
+    GP.FOLDER_UPLOAD("folder_upl", "Upload Folder");
     GP.FILE_MANAGER(&LittleFS);
     GP.BLOCK_END();
+
     GP.BLOCK_END();
 
     GP.ONLINE_CHECK();
@@ -598,5 +602,11 @@ void portal_action(GyverPortal &p) {
     if (p.form("/reset")) {
         LittleFS.remove(WIFI_SETTINGS_FILE);
         ESP.restart();
+    }
+    if (p.uploadEnd()) {
+        Serial.print("Uploaded file: ");
+        Serial.print(p.fileName());
+        Serial.print(", from: ");
+        Serial.println(p.uploadName());
     }
 }
