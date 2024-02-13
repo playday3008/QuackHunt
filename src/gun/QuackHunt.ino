@@ -166,6 +166,9 @@ void setup() {
                 oled.display();
                 
                 LittleFS.remove(WIFI_SETTINGS_FILE);
+
+                // Delay for 5 seconds to allow the user to see the error message
+                delay(5000);
                 ESP.restart();
             }
             file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
@@ -178,6 +181,28 @@ void setup() {
             File file = LittleFS.open(WIFI_SETTINGS_FILE, "r");
             file.read((uint8_t *)&wifi_settings, sizeof(wifi_settings));
             file.close();
+
+            // Check magic number
+            if (wifi_settings.magic != FIRMWARE_MAGIC) {
+                Serial.println("Wi-Fi settings magic number mismatch");
+                Serial.println("Restoring default Wi-Fi settings");
+
+                oled.clearDisplay();
+                oled.setTextSize(2);
+                oled.setTextColor(SSD1327_WHITE);
+                oled.setCursor(0, 0);
+                oled.println("QuackHunt");
+                oled.setTextColor(SSD1327_BLACK);
+                oled.setTextSize(1);
+                oled.println("Wi-Fi settings magic number mismatch");
+                oled.display();
+
+                LittleFS.remove(WIFI_SETTINGS_FILE);
+
+                // Delay for 5 seconds to allow the user to see the error message
+                delay(5000);
+                ESP.restart();
+            }
         }
 #if DEBUG
         Serial.println("Data read:");
@@ -264,7 +289,7 @@ void setup() {
             IPAddress subnet(WIFI_AP_SUBNET);
             WiFi.mode(WIFI_AP);
             WiFi.softAPConfig(apIP, apIP, subnet);
-            WiFi.softAP(wifi_settings.ap_ssid);
+            WiFi.softAP(wifi_settings.ap_ssid, wifi_settings.ap_pass);
 
             // Start Wi-Fi Portal
             GyverPortal gp(&LittleFS);
@@ -276,6 +301,10 @@ void setup() {
             Serial.println("Wi-Fi Portal Started!");
             Serial.print("SSID: ");
             Serial.println(wifi_settings.ap_ssid);
+            Serial.print("Password: ");
+            Serial.println(wifi_settings.ap_pass);
+            Serial.print("IP Address: ");
+            Serial.println(WiFi.softAPIP());
             Serial.println("Portal log:");
 
             oled.clearDisplay();
@@ -285,37 +314,43 @@ void setup() {
             oled.println("QuackHunt");
             oled.setTextSize(1);
             oled.println("Starting Wi-Fi Portal");
+            oled.print("SSID: ");
             oled.println(wifi_settings.ap_ssid);
+            oled.print("Pass: ");
+            oled.println(wifi_settings.ap_pass);
+            oled.print("IP: ");
+            oled.println(WiFi.softAPIP());
             oled.display();
 
             while (true) {
                 if (!gp.tick()) {
-                    if (wifi_settings.mode == WIFI_STA) {
-                        Serial.println("Saving Wi-Fi configuration");
-                        File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
-                        if (!file) {
-                            Serial.println("Failed to save Wi-Fi configuration");
+                    Serial.println("Saving Wi-Fi configuration");
+                    File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
+                    if (!file) {
+                        Serial.println("Failed to save Wi-Fi configuration");
 
-                            oled.clearDisplay();
-                            oled.setTextSize(2);
-                            oled.setTextColor(SSD1327_WHITE);
-                            oled.setCursor(0, 0);
-                            oled.println("QuackHunt");
-                            oled.setTextColor(SSD1327_BLACK);
-                            oled.setTextSize(1);
-                            oled.println("Failed to save Wi-Fi configuration");
-                            oled.display();
+                        oled.clearDisplay();
+                        oled.setTextSize(2);
+                        oled.setTextColor(SSD1327_WHITE);
+                        oled.setCursor(0, 0);
+                        oled.println("QuackHunt");
+                        oled.setTextColor(SSD1327_BLACK);
+                        oled.setTextSize(1);
+                        oled.println("Failed to save Wi-Fi configuration");
+                        oled.display();
 
-                            LittleFS.remove(WIFI_SETTINGS_FILE);
-                            ESP.restart();
-                        }
-                        file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
-                        file.close();
+                        LittleFS.remove(WIFI_SETTINGS_FILE);
 
-                        Serial.println("Wi-Fi configuration saved!");
-                        Serial.println("Restarting...");
+                        // Delay for 5 seconds to allow the user to see the error message
+                        delay(5000);
                         ESP.restart();
                     }
+                    file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
+                    file.close();
+
+                    Serial.println("Wi-Fi configuration saved!");
+                    Serial.println("Restarting...");
+                    ESP.restart();
                 }
             }
         }
@@ -350,14 +385,32 @@ void setup() {
                                   payload);
                     // Report board configuration to the app
                     String s;
+                    s += "VERSION:";
+                    s += FIRMWARE_VERSION;
+                    s += ';';
+                    s += "AP:";
+                    s += wifi_settings.ap_ssid;
+                    s += ',';
+                    s += wifi_settings.ap_pass;
+                    s += ';';
                     s += "OLED:";
                     s += OLED_WIDTH;
                     s += ',';
                     s += OLED_HEIGHT;
                     s += ';';
-                    s += "SSID:";
-                    s += wifi_settings.ssid;
                     ws.sendTXT(num, (uint8_t *)s.c_str(), s.length());
+
+                    // Send save.bin if it exists
+                    File file = LittleFS.open("/save.bin", "r");
+                    if (file) {
+                        uint8_t *buf = (uint8_t *)malloc(file.size());
+                        if (buf) {
+                            file.read(buf, file.size());
+                            ws.sendBIN(num, buf, file.size());
+                            free(buf);
+                        }
+                        file.close();
+                    }
                 } break;
                 case WStype_TEXT: {
                     Serial.printf("[%u] Got Text: %s\n", num, payload);
@@ -376,6 +429,15 @@ void setup() {
                 case WStype_BIN: {
                     Serial.printf("[%u] Got binary length: %u\n", num, length);
                     hexdump(payload, length, 16);
+
+                    // Store the binary data to a file
+                    File file = LittleFS.open("/save.bin", "w");
+                    if (!file) {
+                        Serial.println("Failed to open file for writing");
+                        break;
+                    }
+                    file.write(payload, length);
+                    file.close();
                 } break;
                 default:
                     break;
@@ -488,7 +550,15 @@ void portal_build(GyverPortal &p) {
     GP.BLOCK_TAB_BEGIN(F("AP Settings"));
     GP.FORM_BEGIN("/ap");
     GP.TEXT("ap_ssid", "SSID", wifi_settings.ap_ssid, "", SSID_SIZE);
+    GP.BREAK();
+    GP.PASS("ap_pass", "Password", wifi_settings.ap_pass, "", PASS_SIZE);
     GP.SUBMIT("Apply");
+    GP.FORM_END();
+    GP.BLOCK_END();
+
+    GP.BLOCK_TAB_BEGIN(F("Reset"));
+    GP.FORM_BEGIN("/reset");
+    GP.SUBMIT("Reset");
     GP.FORM_END();
     GP.BLOCK_END();
 
@@ -496,6 +566,16 @@ void portal_build(GyverPortal &p) {
     GP.OTA_FIRMWARE();
     GP.OTA_FILESYSTEM();
     GP.BLOCK_END();
+
+    GP.BLOCK_TAB_BEGIN(F("Debug Info"));
+    GP.SYSTEM_INFO(FIRMWARE_VERSION);
+
+    GP.BLOCK_TAB_BEGIN(F("File Manager"));
+    GP.FILE_MANAGER(&LittleFS);
+    GP.BLOCK_END();
+    GP.BLOCK_END();
+
+    GP.ONLINE_CHECK();
 
     GP.BUILD_END();
 }
@@ -510,8 +590,13 @@ void portal_action(GyverPortal &p) {
     }
     if (p.form("/ap")) {
         p.copyStr("ap_ssid", wifi_settings.ap_ssid);
+        p.copyStr("ap_pass", wifi_settings.ap_pass);
         wifi_settings.mode = WIFI_AP;
         WiFi.softAPdisconnect();
         p.stop();
+    }
+    if (p.form("/reset")) {
+        LittleFS.remove(WIFI_SETTINGS_FILE);
+        ESP.restart();
     }
 }
