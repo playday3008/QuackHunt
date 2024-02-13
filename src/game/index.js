@@ -211,7 +211,6 @@ let config = {
   name: 'Player 1',
   ip: '192.168.1.101',
   treshold: 50,
-  status: 'Not connected',
 };
 
 let game = null;
@@ -260,6 +259,7 @@ function setup() {
   if (localStorage.hasOwnProperty("QuackHunt_config")) {
     config = JSON.parse(localStorage.getItem("QuackHunt_config"));
   }
+  config.status = 'Not Connected';
 
   // Create canvas
   createCanvas(windowWidth, windowHeight);
