@@ -9,8 +9,7 @@
  * @url         https://github.com/DFRobot/DFRobot_TCS34725
  */
 
-#ifndef _TCS34725_H_
-#define _TCS34725_H_
+#pragma once
 #ifdef __AVR
 #include <avr/pgmspace.h>
 #elif defined(ESP8266)
@@ -216,4 +215,3 @@ class TCS34725
 	uint8_t _I2C_addr;
 	eIntegrationTime_t _tcs34725IntegrationTime;
 };
-#endif

@@ -9,7 +9,7 @@
 #include <EncButton.h>
 #include <FS.h>
 #include <LittleFS.h>
-#include <SimplePortal.h>
+#include <GyverPortal.h>
 #include <WebSocketsServer.h>
 #include <Wire.h>
 
@@ -40,9 +40,12 @@ WebSocketsServer ws(                // For WebSocket
 
 // --- Global Logic Variables ---
 WiFiSettings     wifi_settings;     // For Wi-Fi
-uint8_t          ws_client = 0; // For WebSocket
+uint8_t          ws_client = 0;     // For WebSocket
 
 void __attribute__((weak)) hexdump(const void* mem, uint32_t len, uint8_t cols);
+
+void portal_build(GyverPortal &p);
+void portal_action(GyverPortal &p);
 
 void setup() {
     // Setup Serial
@@ -143,15 +146,15 @@ void setup() {
     {
         Serial.println();
         Serial.println("Initializing Wi-Fi Settings");
-        // Check if file 'wifi.settings' exists
-        // If not, create one with default settings
-        // If yes, read the settings from the file to wifi_settings struct
+
         if (!LittleFS.exists(WIFI_SETTINGS_FILE)) {
             Serial.println("No Wi-Fi settings found");
             Serial.println("Creating default Wi-Fi settings");
+
             File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
             if (!file) {
                 Serial.println("Failed to create default Wi-Fi settings");
+
                 oled.clearDisplay();
                 oled.setTextSize(2);
                 oled.setTextColor(SSD1327_WHITE);
@@ -167,9 +170,11 @@ void setup() {
             }
             file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
             file.close();
+
             Serial.println("Default Wi-Fi settings created!");
         } else {
             Serial.println("Reading Wi-Fi settings");
+
             File file = LittleFS.open(WIFI_SETTINGS_FILE, "r");
             file.read((uint8_t *)&wifi_settings, sizeof(wifi_settings));
             file.close();
@@ -245,15 +250,32 @@ void setup() {
         }
 
         btn.tick();
-        if (WiFi.status() != WL_CONNECTED || btn.read()) {
+        if (WiFi.status() != WL_CONNECTED || btn.read() || wifi_settings.mode == WIFI_AP) {
             // There is no saved Wi-Fi configuration or the saved Wi-Fi
             // configuration is invalid
             Serial.println(
                 "No saved Wi-Fi configuration or the saved Wi-Fi configuration is invalid");
             Serial.println("Starting Wi-Fi Portal");
-            portalStart();
+
+            // Set Wi-Fi mode to AP
+            WiFi.softAPdisconnect();
+            WiFi.disconnect();
+            IPAddress apIP(WIFI_AP_IP);
+            IPAddress subnet(WIFI_AP_SUBNET);
+            WiFi.mode(WIFI_AP);
+            WiFi.softAPConfig(apIP, apIP, subnet);
+            WiFi.softAP(wifi_settings.ap_ssid);
+
+            // Start Wi-Fi Portal
+            GyverPortal gp(&LittleFS);
+            gp.attachBuild(portal_build);
+            gp.attach(portal_action);
+            gp.start();
+            gp.enableOTA();
+
             Serial.println("Wi-Fi Portal Started!");
-            Serial.println("SSID: " SP_AP_NAME);
+            Serial.print("SSID: ");
+            Serial.println(wifi_settings.ap_ssid);
             Serial.println("Portal log:");
 
             oled.clearDisplay();
@@ -263,17 +285,12 @@ void setup() {
             oled.println("QuackHunt");
             oled.setTextSize(1);
             oled.println("Starting Wi-Fi Portal");
-            oled.println(SP_AP_NAME);
+            oled.println(wifi_settings.ap_ssid);
             oled.display();
 
-            while (1) {
-                if (portalTick()) {
-                    Serial.println(portalStatus());
-                    if (portalStatus() == SP_SUBMIT) {
-                        strncpy(wifi_settings.ssid, portalCfg.SSID, 0x20);
-                        strncpy(wifi_settings.pass, portalCfg.pass, 0x20);
-                        wifi_settings.mode = portalCfg.mode;
-
+            while (true) {
+                if (!gp.tick()) {
+                    if (wifi_settings.mode == WIFI_STA) {
                         Serial.println("Saving Wi-Fi configuration");
                         File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
                         if (!file) {
@@ -452,4 +469,49 @@ void __attribute__((weak)) hexdump(const void* mem, uint32_t len, uint8_t cols)
         optimistic_yield(10000);
     }
     Serial.printf("\n");
+}
+
+// Wi-Fi Portal
+
+void portal_build(GyverPortal &p) {
+    GP.BUILD_BEGIN(GP_DARK);
+
+    GP.BLOCK_TAB_BEGIN(F("Wi-Fi Settings"));
+    GP.FORM_BEGIN("/connect");
+    GP.TEXT("ssid", "SSID", wifi_settings.ssid, "", SSID_SIZE);
+    GP.BREAK();
+    GP.PASS("pass", "Password", wifi_settings.pass, "", PASS_SIZE);
+    GP.SUBMIT("Apply");
+    GP.FORM_END();
+    GP.BLOCK_END();
+
+    GP.BLOCK_TAB_BEGIN(F("AP Settings"));
+    GP.FORM_BEGIN("/ap");
+    GP.TEXT("ap_ssid", "SSID", wifi_settings.ap_ssid, "", SSID_SIZE);
+    GP.SUBMIT("Apply");
+    GP.FORM_END();
+    GP.BLOCK_END();
+
+    GP.BLOCK_TAB_BEGIN(F("OTA Update"));
+    GP.OTA_FIRMWARE();
+    GP.OTA_FILESYSTEM();
+    GP.BLOCK_END();
+
+    GP.BUILD_END();
+}
+
+void portal_action(GyverPortal &p) {
+    if (p.form("/connect")) {
+        p.copyStr("ssid", wifi_settings.ssid);
+        p.copyStr("pass", wifi_settings.pass);
+        wifi_settings.mode = WIFI_STA;
+        WiFi.softAPdisconnect();
+        p.stop();
+    }
+    if (p.form("/ap")) {
+        p.copyStr("ap_ssid", wifi_settings.ap_ssid);
+        wifi_settings.mode = WIFI_AP;
+        WiFi.softAPdisconnect();
+        p.stop();
+    }
 }

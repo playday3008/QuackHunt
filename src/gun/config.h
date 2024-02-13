@@ -1,3 +1,5 @@
+#pragma once
+
 // PIN Configuration
 #if defined(ESP32)
 #   define LED_PIN  D8
@@ -35,14 +37,19 @@
 #endif
 
 // Wi-Fi Settings
+#define WIFI_AP_IP           192, 168, 1, 1
+#define WIFI_AP_SUBNET       255, 255, 255, 0
 #define WIFI_SETTINGS_FILE   "/wifi.settings"
 #define WIFI_CONNECT_TIMEOUT (20 * 1000)
 
 // Wi-Fi Settings Struct
+#define SSID_SIZE 0x20
+#define PASS_SIZE 0x40
 struct WiFiSettings {
-    char    ssid[0x20] = "";
-    char    pass[0x40] = "";
-    uint8_t mode       = WIFI_AP;
+    char    ssid[SSID_SIZE]    = "";
+    char    pass[PASS_SIZE]    = "";
+    char    ap_ssid[SSID_SIZE] = "QuackHuntGun Config";
+    uint8_t mode               = WIFI_AP;
 };
 
 // WebSocket Settings
