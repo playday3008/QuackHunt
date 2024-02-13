@@ -536,50 +536,91 @@ void __attribute__((weak)) hexdump(const void* mem, uint32_t len, uint8_t cols)
 // Wi-Fi Portal
 
 void portal_build(GyverPortal &p) {
-    GP.BUILD_BEGIN(GP_DARK);
+    if (LittleFS.exists("/gp_data/scripts.js"))
+        GP.BUILD_BEGIN_FILE("GP_DARK", 1600);
+    else
+        GP.BUILD_BEGIN(GP_DARK, 1600);
 
-    GP.BLOCK_TAB_BEGIN(F("Wi-Fi Settings"));
-    GP.FORM_BEGIN("/connect");
-    GP.TEXT("ssid", "SSID", wifi_settings.ssid, "", SSID_SIZE);
-    GP.BREAK();
-    GP.PASS("pass", "Password", wifi_settings.pass, "", PASS_SIZE);
-    GP.SUBMIT("Apply");
-    GP.FORM_END();
-    GP.BLOCK_END();
+    GP.GRID_RESPONSIVE(1350);
 
-    GP.BLOCK_TAB_BEGIN(F("AP Settings"));
-    GP.FORM_BEGIN("/ap");
-    GP.TEXT("ap_ssid", "SSID", wifi_settings.ap_ssid, "", SSID_SIZE);
-    GP.BREAK();
-    GP.PASS("ap_pass", "Password", wifi_settings.ap_pass, "", PASS_SIZE);
-    GP.SUBMIT("Apply");
-    GP.FORM_END();
-    GP.BLOCK_END();
+    GP.TITLE("QuackHunt Gun Configuration");
 
-    GP.BLOCK_TAB_BEGIN(F("Reset"));
-    GP.FORM_BEGIN("/reset");
-    GP.SUBMIT("Reset");
-    GP.FORM_END();
-    GP.BLOCK_END();
+    M_GRID(
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "Wi-Fi Settings",
+            M_FORM(
+                "/connect",
+                "Apply",
+                M_BOX(GP.LABEL("SSID");     GP.TEXT("ssid", "SSID",     wifi_settings.ssid, "", SSID_SIZE););
+                M_BOX(GP.LABEL("Password"); GP.PASS("pass", "Password", wifi_settings.pass, "", PASS_SIZE););
+            );
+        );
+        
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "AP Settings",
+            M_FORM(
+                "/ap",
+                "Apply",
+                M_BOX(GP.LABEL("SSID");     GP.TEXT("ap_ssid", "SSID",     wifi_settings.ap_ssid, "", SSID_SIZE););
+                M_BOX(GP.LABEL("Password"); GP.PASS("ap_pass", "Password", wifi_settings.ap_pass, "", PASS_SIZE););
+            );
+        );
 
-    GP.BLOCK_TAB_BEGIN(F("OTA Update"));
-    GP.OTA_FIRMWARE();
-    GP.OTA_FILESYSTEM();
-    GP.BLOCK_END();
-
-    GP.BLOCK_TAB_BEGIN(F("Debug Stuff"));
-
-    GP.SYSTEM_INFO(FIRMWARE_VERSION);
-
-    GP.BLOCK_TAB_BEGIN(F("File Upload"));
-    GP.FILE_UPLOAD("file_upl", "Upload File");
-    GP.FOLDER_UPLOAD("folder_upl", "Upload Folder");
-    GP.FILE_MANAGER(&LittleFS);
-    GP.BLOCK_END();
-
-    GP.BLOCK_END();
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "Reset",
+            M_FORM(
+                "/reset",
+                "Reset",
+                ;
+            );
+        );
+        
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "OTA Update",
+            M_BOX(GP.OTA_FIRMWARE(););
+            M_BOX(GP.OTA_FILESYSTEM(););
+        );
+    );
+        
+    M_GRID(
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "Debug Stuff",
+            M_BOX(GP.SYSTEM_INFO(FIRMWARE_VERSION););
+        );
+        
+        M_BLOCK(
+            GP_TAB,
+            "",
+            "File Manager",
+            M_BLOCK(
+                GP_THIN,
+                "-webkit-fill-available",
+                M_BOX(GP.FILE_UPLOAD("file_upl", "Upload File"););
+                M_BOX(GP.FOLDER_UPLOAD("folder_upl", "Upload Folder"););
+            );
+            M_BLOCK(
+                GP_THIN,
+                "-webkit-fill-available",
+                M_BOX(GP.FILE_MANAGER(&LittleFS););
+            );
+        );
+    );
 
     GP.ONLINE_CHECK();
+
+    GP.JS_BEGIN();
+    GP.SEND("document.title = 'QuackHunt Gun Configuration';");
+    GP.JS_END();
 
     GP.BUILD_END();
 }
