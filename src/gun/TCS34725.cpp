@@ -11,12 +11,10 @@
 
 #include "TCS34725.hpp"
 
-#if 0
-static float powf(const float x, const float y)
+float __attribute__((weak)) powf(const float x, const float y)
 {
   return (float)(pow((double)x, (double)y));
 }
-#endif
 
 TCS34725::TCS34725(TwoWire *pWire , uint8_t I2C_addr,eIntegrationTime_t it, eGain_t gain)
 {
