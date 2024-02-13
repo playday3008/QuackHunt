@@ -1,6 +1,13 @@
 // PIN Configuration
-#define LED_PIN  D8
-#define TRIG_PIN D9
+#if defined(ESP32)
+#   define LED_PIN  D8
+#   define TRIG_PIN D9
+#elif defined(ESP8266)
+#   define LED_PIN  D8
+#   define TRIG_PIN D7
+#else
+#   error "Unsupported platform"
+#endif
 
 // Serial Settings
 #define BAUD_RATE 74880 // Bootloader have the same baud rate
@@ -18,8 +25,14 @@
 #define RGB_TIME TCS34725_INTEGRATIONTIME_24MS
 #define RGB_GAIN TCS34725_GAIN_16X
 
-// SPIFFS Settings
-#define FORMAT_SPIFFS_IF_FAILED true
+// LittleFS Settings
+#if defined(ESP32)
+#   define FORMAT_LITTLEFS_IF_FAILED true
+#elif defined(ESP8266)
+#   define FORMAT_LITTLEFS_IF_FAILED
+#else
+#   error "Unsupported platform"
+#endif
 
 // Wi-Fi Settings
 #define WIFI_SETTINGS_FILE   "/wifi.settings"
@@ -28,7 +41,7 @@
 // Wi-Fi Settings Struct
 struct WiFiSettings {
     char    ssid[0x20] = "";
-    char    pass[0x20] = "";
+    char    pass[0x40] = "";
     uint8_t mode       = WIFI_AP;
 };
 

@@ -1,8 +1,14 @@
 #include <Arduino.h>
-#include <WiFi.h>
+#if defined(ESP32)
+#   include <WiFi.h>
+#elif defined(ESP8266)
+#   include <ESP8266WiFi.h>
+#else
+#   error "Unsupported platform"
+#endif
 #include <EncButton.h>
 #include <FS.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
 #include <SimplePortal.h>
 #include <WebSocketsServer.h>
 #include <Wire.h>
@@ -36,7 +42,7 @@ WebSocketsServer ws(                // For WebSocket
 WiFiSettings     wifi_settings;     // For Wi-Fi
 uint8_t          ws_client = 0; // For WebSocket
 
-void hexdump(const void* mem, uint32_t len, uint8_t cols = 16);
+void __attribute__((weak)) hexdump(const void* mem, uint32_t len, uint8_t cols);
 
 void setup() {
     // Setup Serial
@@ -103,13 +109,13 @@ void setup() {
         Serial.println("RGB Sensor Initialized!");
     }
 
-    // Setup SPIFFS
+    // Setup LittleFS
     {
         Serial.println();
-        Serial.println("Initializing SPIFFS");
+        Serial.println("Initializing LittleFS");
 
-        if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
-            Serial.println("SPIFFS Mount Failed");
+        if(!LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED)){
+            Serial.println("LittleFS Mount Failed");
 
             oled.clearDisplay();
             oled.setTextSize(2);
@@ -118,19 +124,19 @@ void setup() {
             oled.println("QuackHunt");
             oled.setTextColor(SSD1327_BLACK);
             oled.setTextSize(1);
-            oled.println("SPIFFS Mount Failed");
+            oled.println("LittleFS Mount Failed");
             oled.display();
 
             for (;;) {
                 led.toggle();
-                if (SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED))
+                if (LittleFS.begin(FORMAT_LITTLEFS_IF_FAILED))
                     break;
                 delay(100);
             }
             led.off();
         }
 
-        Serial.println("SPIFFS Initialized!");
+        Serial.println("LittleFS Initialized!");
     }
 
     // Setup WiFi Settings
@@ -140,11 +146,10 @@ void setup() {
         // Check if file 'wifi.settings' exists
         // If not, create one with default settings
         // If yes, read the settings from the file to wifi_settings struct
-        File file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_READ);
-        if (!file) {
+        if (!LittleFS.exists(WIFI_SETTINGS_FILE)) {
             Serial.println("No Wi-Fi settings found");
             Serial.println("Creating default Wi-Fi settings");
-            file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_WRITE);
+            File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
             if (!file) {
                 Serial.println("Failed to create default Wi-Fi settings");
                 oled.clearDisplay();
@@ -157,7 +162,7 @@ void setup() {
                 oled.println("Failed to create default Wi-Fi settings");
                 oled.display();
                 
-                SPIFFS.remove(WIFI_SETTINGS_FILE);
+                LittleFS.remove(WIFI_SETTINGS_FILE);
                 ESP.restart();
             }
             file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
@@ -165,6 +170,7 @@ void setup() {
             Serial.println("Default Wi-Fi settings created!");
         } else {
             Serial.println("Reading Wi-Fi settings");
+            File file = LittleFS.open(WIFI_SETTINGS_FILE, "r");
             file.read((uint8_t *)&wifi_settings, sizeof(wifi_settings));
             file.close();
         }
@@ -269,7 +275,7 @@ void setup() {
                         wifi_settings.mode = portalCfg.mode;
 
                         Serial.println("Saving Wi-Fi configuration");
-                        File file = SPIFFS.open(WIFI_SETTINGS_FILE, FILE_WRITE);
+                        File file = LittleFS.open(WIFI_SETTINGS_FILE, "w");
                         if (!file) {
                             Serial.println("Failed to save Wi-Fi configuration");
 
@@ -283,7 +289,7 @@ void setup() {
                             oled.println("Failed to save Wi-Fi configuration");
                             oled.display();
 
-                            SPIFFS.remove(WIFI_SETTINGS_FILE);
+                            LittleFS.remove(WIFI_SETTINGS_FILE);
                             ESP.restart();
                         }
                         file.write((uint8_t *)&wifi_settings, sizeof(wifi_settings));
@@ -352,7 +358,7 @@ void setup() {
                 } break;
                 case WStype_BIN: {
                     Serial.printf("[%u] Got binary length: %u\n", num, length);
-                    hexdump(payload, length);
+                    hexdump(payload, length, 16);
                 } break;
                 default:
                     break;
@@ -419,7 +425,7 @@ void loop() {
 }
 
 IRAM_ATTR
-void hexdump(const void* mem, uint32_t len, uint8_t cols)
+void __attribute__((weak)) hexdump(const void* mem, uint32_t len, uint8_t cols)
 {
     const char* src = (const char*)mem;
     Serial.printf("\n[HEXDUMP] Address: %p len: 0x%X (%d)", src, len, len);
