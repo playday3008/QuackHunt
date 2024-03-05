@@ -10,15 +10,18 @@
     <title>Quack Hunt</title>
 
     <!-- Load Dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/p5.min.js"
-        integrity="sha256-u3+PFLnOLiNE/1zWwG8uEF65lUHsv+x3E54ohtnAubo=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/p5@1.7.0/lib/addons/p5.sound.min.js"
-        integrity="sha256-8GfvfPgLNWEyfnsUZh7JgPvTSyuvHgqdUpoSATK6AQc=" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tweakpane@3.1.10/dist/tweakpane.min.js"
-        integrity="sha256-Mmk9fUPRsEk/FCx9UFWJTI+9XxaLePK9y1JyoZ7CGVY=" crossorigin="anonymous"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "p5": "https://cdn.jsdelivr.net/npm/p5@1/+esm",
+          "@pixi/sound": "https://cdn.jsdelivr.net/npm/@pixi/sound@5/+esm",
+          "tweakpane": "https://cdn.jsdelivr.net/npm/tweakpane@4/+esm"
+        }
+      }
+    </script>
 
     <!-- Load Scripts -->
-    <script src="./index.js"></script>
+    <script type="module" src="./index.js"></script>
 
     <style>
         html,
