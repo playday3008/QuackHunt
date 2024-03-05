@@ -371,6 +371,17 @@ void setup() {
             switch (type) {
                 case WStype_DISCONNECTED: {
                     Serial.printf("[%u] Disconnected!\n", num);
+
+                    oled.clearDisplay();
+                    oled.setTextSize(2);
+                    oled.setTextColor(SSD1327_WHITE);
+                    oled.setCursor(0, 0);
+                    oled.println("QuackHunt");
+                    oled.setTextSize(1);
+                    oled.print("IP: ");
+                    oled.println(WiFi.localIP());
+                    oled.println("Disconnected!");
+                    oled.display();
                 } break;
                 case WStype_CONNECTED: {
                     ws_client = num;
@@ -388,6 +399,10 @@ void setup() {
                     s += "VERSION:";
                     s += FIRMWARE_VERSION;
                     s += ';';
+                    s += "WIFI:";
+                    s += wifi_settings.ssid;
+                    s += ',';
+                    s += wifi_settings.pass;
                     s += "AP:";
                     s += wifi_settings.ap_ssid;
                     s += ',';
