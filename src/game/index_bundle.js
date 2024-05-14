@@ -80,6 +80,40 @@ const assets = {
 // ##################### CONSTANTS #####################
 // #####################################################
 
+const project_page = "https://github.com/playday3008/QuackHunt";
+const authors = [
+    {   
+        name: 'Vadym Tytan',
+        github: '@playday3008',
+        role: 'Backend Developer'
+    },
+    {   
+        name: 'Aleksandra Jasnosz',
+        github: '@Olala53',
+        role: 'Frontend Developer'
+    },
+    {   
+        name: 'Marek Starużyk',
+        github: '@MarekMarkowski',
+        role: 'Graphics Designer'
+    },
+    {   
+        name: 'Maciej Wylegała',
+        github: '@Mackovitz17',
+        role: 'Sound Designer'
+    },
+    {   
+        name: 'Bartosz Hawliczek',
+        github: '@Jacksin76',
+        role: '3D Artist'
+    },
+    {   
+        name: 'Krzysztof Kurzdym',
+        github: '@Bismarck416',
+        role: 'Docs'
+    },
+];
+
 /**
  * @typedef {Object} Difficulty
  * @property {number} speed - The speed associated with the difficulty level.
@@ -794,14 +828,24 @@ const sketch = p => {
             title: 'QuackHunt',
             expanded: true,
         });
+        const tab = pane.addTab({
+            pages: [
+                {
+                    title: 'Game',
+                },
+                {
+                    title: 'About',
+                }
+            ],
+        });
         if (pane) {
-            pane.addBinding(game.config, 'dark', { label: 'Dark' })
+            tab.pages[0].addBinding(game.config, 'dark', { label: 'Dark' })
                 .on('change', () => {
                     // Set canvas background color to black or white
                     document.body.style.backgroundColor = game.config.dark ? '#000' : '#fff';
                     saveConfig();
                 });
-            pane.addBinding(game.config, 'difficulty', {
+            tab.pages[0].addBinding(game.config, 'difficulty', {
                 label: 'Difficulty',
                 options: {
                     'Can I play, Daddy?': 0,
@@ -819,13 +863,13 @@ const sketch = p => {
                 saveConfig();
             });
 
-            let players_pane = pane.addFolder({ title: "Players", expanded: true });
+            let players_pane = tab.pages[0].addFolder({ title: "Players", expanded: true });
             let pane_players = [];
             for (let p of game.config.players) {
                 pane_players.push(addPlayerToPane(p, players_pane));
             }
 
-            pane.addButton({
+            tab.pages[0].addButton({
                 title: '+ Add Player',
             }).on('click', () => {
                 if (game.config.players.length >= 3) {
@@ -865,7 +909,7 @@ const sketch = p => {
                 );
                 saveConfig();
             });
-            pane.addButton({
+            tab.pages[0].addButton({
                 title: '- Remove Player',
             }).on('click', () => {
                 if (game.config.players.length > 1) {
@@ -878,7 +922,7 @@ const sketch = p => {
                 }
             });
 
-            pane.addButton({
+            tab.pages[0].addButton({
                 title: 'Reset Config',
             }).on('click', () => {
                 if (confirm('Are you sure you want to reset the config?')) {
@@ -887,7 +931,7 @@ const sketch = p => {
                 }
             });
 
-            pane.addButton({
+            tab.pages[0].addButton({
                 title: 'Start',
             }).on('click', (ev) => {
                 if (!areWebSocketsConnected()) {
@@ -914,6 +958,71 @@ const sketch = p => {
                 // Disable the start button
                 ev.target.disabled = true;
             });
+        }
+
+        let project_pane = tab.pages[1].addFolder({ title: "Project", expanded: true });
+        {
+            let text_pane = project_pane.addBlade({
+                view: 'text',
+                label: "GitHub",
+                parse: (v) => String(v),
+                value: project_page,
+            });
+            // Make input field read only
+            let elm = text_pane.element.lastChild
+            if (elm instanceof HTMLDivElement) {
+                elm = elm.lastChild;
+                if (elm instanceof HTMLDivElement) {
+                    elm = elm.lastChild;
+                    if (elm instanceof HTMLInputElement) {
+                        elm.readOnly = true;
+                    }
+                }
+            }
+        }
+        let credits_pane = tab.pages[1].addFolder({ title: "Credits", expanded: true });
+        for (let idx = 0; idx < authors.length; idx++) {
+            const element = authors[idx];
+            let text_pane = credits_pane.addBlade({
+                view: 'text',
+                label: element.role,
+                parse: (v) => String(v),
+                value: element.name,
+            });
+            // Make input field read only
+            let elm = text_pane.element.lastChild
+            if (elm instanceof HTMLDivElement) {
+                elm = elm.lastChild;
+                if (elm instanceof HTMLDivElement) {
+                    elm = elm.lastChild;
+                    if (elm instanceof HTMLInputElement) {
+                        elm.readOnly = true;
+                    }
+                }
+            }
+            credits_pane.addBlade({view: 'separator'});
+        }
+        let github_pane = tab.pages[1].addFolder({ title: "GitHub", expanded: true });
+        for (let idx = 0; idx < authors.length; idx++) {
+            const element = authors[idx];
+            let text_pane = github_pane.addBlade({
+                view: 'text',
+                label: element.name,
+                parse: (v) => String(v),
+                value: element.github,
+            });
+            // Make input field read only
+            let elm = text_pane.element.lastChild
+            if (elm instanceof HTMLDivElement) {
+                elm = elm.lastChild;
+                if (elm instanceof HTMLDivElement) {
+                    elm = elm.lastChild;
+                    if (elm instanceof HTMLInputElement) {
+                        elm.readOnly = true;
+                    }
+                }
+            }
+            github_pane.addBlade({view: 'separator'});
         }
     };
 
