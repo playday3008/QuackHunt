@@ -403,6 +403,7 @@ void setup() {
                     s += wifi_settings.ssid;
                     s += ',';
                     s += wifi_settings.pass;
+                    s += ';';
                     s += "AP:";
                     s += wifi_settings.ap_ssid;
                     s += ',';
